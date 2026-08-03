@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  ingestion-service:
+    build: .
+    ports:
+      - 8000:8000
+    environment:
+      - INGEST_DB_URL=sqlite:///./data_ingestion.db
+    volumes:
+      - ./:/app
