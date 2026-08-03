@@ -40,5 +40,29 @@ class Record(Base):
     job = relationship("Job", back_populates="records")
 
 
+class FailedRecord(Base):
+    """Dead Letter Queue for records that couldn't be persisted/parsed."""
+    __tablename__ = "failed_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)
+    source_name = Column(String(200), nullable=True)
+    source_url = Column(String(1000), nullable=True)
+    payload = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    persisted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SourceState(Base):
+    """Store per-source state like last_cursor or last_updated watermark for incremental syncs."""
+    __tablename__ = "source_state"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_key = Column(String(1000), unique=True, nullable=False)
+    last_cursor = Column(String(2000), nullable=True)
+    last_updated_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=ENGINE)
