@@ -150,3 +150,21 @@ def job_details(job_id: int):
             "records_stored": job.records_stored,
             "error": job.error,
         }
+
+@app.get("/api/jobs")
+def api_jobs():
+    with SessionLocal() as session:
+        jobs = session.query(Job).order_by(Job.id.desc()).limit(10).all()
+        return [
+            {
+                "id": j.id,
+                "source_name": j.source_name,
+                "status": j.status,
+                "pages_fetched": j.pages_fetched,
+                "records_stored": j.records_stored,
+                "started_at": j.started_at.strftime('%Y-%m-%d %H:%M:%S') if j.started_at else "",
+                "finished_at": j.finished_at.strftime('%Y-%m-%d %H:%M:%S') if j.finished_at else "",
+                "error": j.error or ""
+            }
+            for j in jobs
+        ]

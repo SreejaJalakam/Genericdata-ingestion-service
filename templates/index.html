@@ -91,6 +91,45 @@
       ];
       document.getElementById('sources_json').value = JSON.stringify(demoData, null, 2);
     }
+
+    // Auto-refresh the page dynamically using AJAX if any job is currently running or pending
+    function pollJobs() {
+      fetch('/api/jobs')
+        .then(response => response.json())
+        .then(jobs => {
+          let hasActiveJobs = false;
+          let html = '';
+          if (jobs.length === 0) {
+            html = '<p>No jobs run yet.</p>';
+          } else {
+            jobs.forEach(job => {
+              if (job.status === 'running' || job.status === 'pending') {
+                hasActiveJobs = true;
+              }
+              html += `<article class="job-card">
+                <strong>${job.source_name}</strong>
+                <div>Status: <span class="status status-${job.status}">${job.status}</span></div>
+                <div>Pages: ${job.pages_fetched}</div>
+                <div>Records: ${job.records_stored}</div>
+                <div>Started: ${job.started_at}</div>
+                ${job.finished_at ? `<div>Finished: ${job.finished_at}</div>` : ''}
+                ${job.error ? `<div class="error">Error: ${job.error}</div>` : ''}
+              </article>`;
+            });
+          }
+          document.querySelector('.jobs-grid').innerHTML = html;
+          if (hasActiveJobs) {
+            setTimeout(pollJobs, 2000);
+          }
+        });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const activeJobs = document.querySelectorAll('.status-running, .status-pending');
+      if (activeJobs.length > 0) {
+        setTimeout(pollJobs, 2000);
+      }
+    });
   </script>
 </body>
 </html>
