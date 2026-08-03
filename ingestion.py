@@ -7,7 +7,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 from db import SessionLocal, FailedRecord, SourceState
 from schemas import PaginationConfig, SourceConfig
-from destinations import DatabaseDestination, Destination
+from destinations import DatabaseDestination, Destination, get_destination
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -161,6 +161,8 @@ def ingest_source(job_id: int, source: SourceConfig, destination: Optional[Desti
     current_params = dict(params)
     max_pages = source.pagination.max_pages if source.pagination else 20
 
+    destination = get_destination(source.destination)
+
     last_cursor_seen = None
     while total_pages < max_pages:
         state = (current_url, tuple(sorted((k, str(v)) for k, v in current_params.items())))
@@ -186,7 +188,7 @@ def ingest_source(job_id: int, source: SourceConfig, destination: Optional[Desti
 
         # Persist via destination plugin
         try:
-            stored = destination.save_records(job_id, source.name, current_url, records, start_index=total_records)
+            stored = destination.store_records(job_id, source.name, current_url, records, start_index=total_records)
         except Exception as exc:
             # If destination fails, write all records to DLQ individually
             with SessionLocal() as session:

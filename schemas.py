@@ -40,6 +40,7 @@ class SourceConfig(BaseModel):
         None,
         description="Optional maximum number of records to ingest from this source.",
     )
+    destination: Literal["database", "s3"] = Field("database", description="Storage destination for records.")
 
 
 class IngestRequest(BaseModel):

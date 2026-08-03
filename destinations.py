@@ -1,63 +1,59 @@
-from abc import ABC, abstractmethod
-from typing import List, Any
+import abc
+import json
+import os
+from typing import Any, List
 
-from db import Record, FailedRecord, SessionLocal
+from db import Record, SessionLocal
 
 
-class Destination(ABC):
-    @abstractmethod
-    def save_records(self, job_id: int, source_name: str, source_url: str, records: List[Any], start_index: int = 0) -> int:
-        """Persist a list of records. Returns number of records stored."""
+class Destination(abc.ABC):
+    """Abstract base class for all data destinations."""
+    @abc.abstractmethod
+    def store_records(
+        self, job_id: int, source_name: str, source_url: str, records: List[Any], start_index: int = 0
+    ) -> int:
+        pass
 
 
 class DatabaseDestination(Destination):
-    def save_records(self, job_id: int, source_name: str, source_url: str, records: List[Any], start_index: int = 0) -> int:
+    """Stores raw JSON records in the primary SQLite database."""
+    def store_records(
+        self, job_id: int, source_name: str, source_url: str, records: List[Any], start_index: int = 0
+    ) -> int:
         with SessionLocal() as session:
             for offset, record in enumerate(records, start=1):
-                try:
-                    session.add(
-                        Record(
-                            job_id=job_id,
-                            source_name=source_name,
-                            source_url=source_url,
-                            record_index=start_index + offset,
-                            payload=record,
-                        )
+                session.add(
+                    Record(
+                        job_id=job_id,
+                        source_name=source_name,
+                        source_url=source_url,
+                        record_index=start_index + offset,
+                        payload=record,
                     )
-                except Exception as exc:
-                    # On failure to persist a single record, move it to DLQ
-                    session.add(
-                        FailedRecord(
-                            job_id=job_id,
-                            source_name=source_name,
-                            source_url=source_url,
-                            payload=record,
-                            error=str(exc),
-                        )
-                    )
+                )
             session.commit()
             return len(records)
 
 
-# Placeholder S3Destination for future extension. Avoid importing boto3 unless used.
-class S3Destination(Destination):
-    def __init__(self, bucket_name: str, prefix: str = ""):
-        self.bucket_name = bucket_name
-        self.prefix = prefix
-        # boto3 client will be created lazily to avoid adding dependency unless used
-        self._client = None
+class S3MockDestination(Destination):
+    """Simulates storing data to S3 by writing JSONL files to a local directory."""
+    def __init__(self, bucket_dir: str = "./s3_mock_bucket"):
+        self.bucket_dir = bucket_dir
+        os.makedirs(self.bucket_dir, exist_ok=True)
 
-    def _get_client(self):
-        if self._client is None:
-            import boto3
-            self._client = boto3.client("s3")
-        return self._client
-
-    def save_records(self, job_id: int, source_name: str, source_url: str, records: List[Any], start_index: int = 0) -> int:
-        # Simple implementation: write a JSON lines file to S3 per batch
-        import json
-        client = self._get_client()
-        key = f"{self.prefix}job-{job_id}/{source_name.replace(' ', '_')}-{start_index}.jsonl"
-        body = "\n".join(json.dumps(r) for r in records)
-        client.put_object(Bucket=self.bucket_name, Key=key, Body=body.encode("utf-8"))
+    def store_records(
+        self, job_id: int, source_name: str, source_url: str, records: List[Any], start_index: int = 0
+    ) -> int:
+        safe_name = "".join(c if c.isalnum() else "_" for c in source_name)
+        filename = os.path.join(self.bucket_dir, f"{safe_name}_job_{job_id}.jsonl")
+        
+        with open(filename, "a", encoding="utf-8") as f:
+            for record in records:
+                f.write(json.dumps(record) + "\n")
         return len(records)
+
+
+def get_destination(name: str) -> Destination:
+    if name == "s3":
+        return S3MockDestination()
+    return DatabaseDestination()
