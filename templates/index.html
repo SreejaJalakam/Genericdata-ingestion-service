@@ -17,23 +17,21 @@
       <h2>Source configuration</h2>
       <form action="/submit" method="post">
         <label for="sources_json">Source definitions (JSON array):</label>
-        <textarea id="sources_json" name="sources_json" rows="16">[\n  {
-    "name": "Rick and Morty Characters",
-    "url": "https://rickandmortyapi.com/api/character",
+        <textarea id="sources_json" name="sources_json" rows="16">[
+  {
+    "name": "",
+    "url": "",
     "pagination": {
-      "type": "next_link",
-      "next_link_path": "info.next",
-      "max_pages": 5
+      "type": ""
     },
-    "data_path": "results",
-    "destination": "s3"
-  },  {
-    "name": "Public APIs",
-    "url": "https://api.publicapis.org/entries",
-    "pagination": {"type": "none"},
-    "data_path": "entries"
-  }\n]</textarea>
-        <button type="submit" class="button">Start ingestion</button>
+    "data_path": "",
+    "destination": ""
+  }
+]</textarea>
+        <div style="margin-top: 10px; display: flex; gap: 10px;">
+          <button type="submit" class="button">Start ingestion</button>
+          <button type="button" class="button button-secondary" onclick="loadDemo()">Load Demo</button>
+        </div>
       </form>
     </section>
 
@@ -66,5 +64,33 @@
       <p>Designed for generic ingestion from arbitrary APIs; records are stored as raw JSON for pipeline flexibility.</p>
     </footer>
   </div>
+
+  <script>
+    function loadDemo() {
+      const demoData = [
+        {
+          "name": "Rick and Morty Characters",
+          "url": "https://rickandmortyapi.com/api/character",
+          "pagination": {
+            "type": "next_link",
+            "next_link_path": "info.next",
+            "max_pages": 5
+          },
+          "data_path": "results",
+          "destination": "s3"
+        },
+        {
+          "name": "JSONPlaceholder Posts",
+          "url": "https://jsonplaceholder.typicode.com/posts",
+          "pagination": {
+            "type": "none"
+          },
+          "data_path": "",
+          "destination": "database"
+        }
+      ];
+      document.getElementById('sources_json').value = JSON.stringify(demoData, null, 2);
+    }
+  </script>
 </body>
 </html>
