@@ -1,6 +1,6 @@
-# Architecture and Design Justifications
+# Scaling for Production (Amazon, Walmart, etc.)
 
-This document outlines the core concerns evaluated when designing this generic ingestion service for real-world, production APIs. As requested by the problem statement, we had to decide which concerns matter most, how far to take them within the scope of a two-day assignment, and justify those trade-offs.
+This document outlines the core concerns evaluated when designing this generic ingestion service for real-world, production APIs. If we were to scale this data ingestion platform to support enterprise-level payloads (like scraping the Amazon or Walmart APIs in a production environment), here is how we address critical concerns and justify those trade-offs.
 
 ## 1. Network Resiliency (Retries & Timeouts)
 **Concern:** Real-world APIs fail randomly. They drop connections, return 502 Bad Gateways, or randomly timeout.
