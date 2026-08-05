@@ -43,12 +43,12 @@ graph LR
 | Auto | ✅ |
 
 ## 5. Public APIs Demonstrated
-| API | Structure | Pagination |
-|---|---|---|
-| **JSONPlaceholder** | Flat array | None |
-| **Rick & Morty** | Nested (`results`) | Next Link (`info.next`) |
-| **DummyJSON** | Nested | Offset |
-| **Open Brewery** | Flat | Page |
+| API | Structure | Pagination | Result |
+|---|---|---|---|
+| **JSONPlaceholder Posts** | Flat JSON array | None | ✅ 100 records |
+| **Rick & Morty Characters** | Nested (`results`) | Next Link (`info.next`) | ✅ 40 records |
+| **DummyJSON Products** | Nested (`products`) | Offset | ✅ 60 records |
+| **Open Brewery** | Flat | Page | ✅ Pass |
 
 ## 6. Running the Project
 **Requirements:** Docker (Recommended) or Python 3.11+
