@@ -1,49 +1,146 @@
-# System Architecture & Design Decisions
+# Generic Data Ingestion Service – Design Notes
 
-This document is not a tutorial on how to run the application (see `README.md`). Instead, it answers the fundamental engineering question: **Why did I design it this way?**
+## Problem Statement
 
-Treating these endpoints as real, external production APIs required several strict architectural trade-offs, which are detailed below.
+The objective was to build a generic data ingestion framework capable of ingesting data from arbitrary REST APIs without being rewritten for each new source. Rather than targeting a specific provider (e.g., Amazon or Walmart), the system is configuration-driven so that new APIs can be integrated by supplying configuration instead of modifying application logic.
 
-## Configuration-Driven Architecture
-**Why:** The assignment explicitly stated that adding a new data source must not mean rewriting the application.
-**Implementation:** The entire engine is blind to the domain it is ingesting. It relies on a JSON configuration payload (`SourceConfig`) to dynamically dictate HTTP parameters, header authentication, data paths, and pagination bounds. Hardcoding `if api == "rick_and_morty"` is an anti-pattern; instead, the engine evaluates mathematical bounds based on the supplied configuration.
+---
 
-## Pagination Abstraction
-**Why:** APIs handle pagination wildly differently. Some use URL parameters (`page=2`), some use offsets (`offset=100`), some use cursors, and others use `next` link strings inside the payload or HTTP headers.
-**Implementation:** We abstracted pagination into a standard schema. The ingestion engine parses this schema and dynamically calculates the next request loop. It supports auto-detection fallback if the API natively returns pagination metadata.
+## Design Goals
 
-## Destination Abstraction
-**Why:** Modern data engineering pipelines rarely dump massive payloads directly into a relational SQL database. They dump raw data into a Data Lake (e.g., AWS S3).
-**Implementation:** We utilized the **Strategy Pattern** via a `Destination` abstract base class. We provided two concrete implementations: `DatabaseDestination` (SQLite) and `S3MockDestination` (saving raw `.jsonl` files). This proves that you can swap destinations in the configuration without altering a single line of backend parsing logic.
+The project was designed around the following principles:
 
-## Retry Strategy
-**Why:** Real-world APIs fail randomly (502 Bad Gateway, 504 Gateway Timeout, connection drops).
-**Implementation:** We wrapped the HTTP fetching logic using the `tenacity` Python library. It automatically handles exponential backoff (e.g., waiting 1s, 2s, 4s, 8s) for failed HTTP requests. This prevents a 1-second network blip from crashing a 10,000-record ingestion job.
+- Generic rather than API-specific
+- Configuration over code changes
+- Extensible architecture
+- Separation of concerns
+- Production-oriented design within a two-day implementation window
 
-## Validation
-**Why:** Garbage in, garbage out. If a user defines an invalid pagination path, the engine must catch it.
-**Implementation:** We leveraged `pydantic` schemas for strict structural validation of incoming configurations. The API will reject malformed configurations (e.g., missing URLs) before the background worker is ever spawned.
+---
 
-## Checkpointing (Incremental Syncs)
-**Why:** When scraping a large e-commerce catalog, we shouldn't download the entire catalog every day. We need to know where we left off.
-**Implementation:** The system tracks the `last_cursor_seen` for cursor-based APIs in a `SourceState` table. Upon subsequent executions, it injects this cursor back into the request parameters to resume precisely where it ended previously.
+## Architecture
 
-## Idempotency (Planned)
-**Why:** Re-running a failed job should not duplicate data in the destination.
-**Planned implementation:** While out-of-scope for the two-day constraint, the next immediate production feature is generating a stable `SHA-256` hash for every JSON record upon ingestion, using that hash as a primary key constraint to prevent duplicate rows during manual re-runs.
+The system consists of five major components.
 
-## Job Tracking
-**Why:** Background ingestion jobs can run for hours. Engineers need operational visibility.
-**Implementation:** We persist jobs to a SQL database with states (`pending`, `running`, `completed`, `failed`), tracking pages fetched and records stored. A lightweight web UI polls the backend via AJAX to render live status updates.
+```mermaid
+graph TD
+    UI[Web UI] --> API[FastAPI Backend]
+    API --> Validate[Configuration Validation]
+    Validate --> Engine[Generic Ingestion Engine]
+    
+    Engine --> Pagination[Pagination]
+    Engine --> Extraction[Record Extraction]
+    Engine --> Retry[Retry Logic]
+    
+    Retry --> Destination[Destination Abstraction]
+    Destination --> DB[(SQLite)]
+    Destination --> S3[(Mock S3)]
+```
+
+---
+
+## Key Design Decisions
+
+### 1. Configuration-Driven Architecture
+The ingestion engine never contains source-specific logic.
+Instead, every source is described through configuration:
+- endpoint
+- pagination strategy
+- record extraction path
+- destination
+
+Adding a new REST API requires configuration changes only.
+
+### 2. Pagination Abstraction
+Different APIs paginate differently.
+The framework supports:
+- None
+- Page
+- Offset
+- Cursor
+- Next-Link
+
+The ingestion engine delegates pagination entirely to configuration instead of hardcoding provider-specific loops.
+
+### 3. Destination Abstraction
+Persistence is separated from ingestion.
+Current implementations:
+- SQLite
+- Mock S3
+
+Future destinations can be added without changing the ingestion engine.
+Examples:
+- AWS S3
+- Kafka
+- Google Cloud Storage
+
+### 4. Raw JSON Persistence
+Instead of transforming records during ingestion, raw JSON payloads are stored.
+Benefits:
+- Prevents information loss
+- Handles heterogeneous schemas
+- Enables downstream transformations
+
+### 5. Retry Strategy
+Transient HTTP failures are handled using exponential backoff retries.
+This improves resilience against temporary network failures.
+
+### 6. Validation
+Configuration is validated before ingestion begins.
+Invalid pagination types or malformed requests fail immediately without creating ingestion work.
+
+### 7. Job Tracking
+Every ingestion job records:
+- status
+- timestamps
+- pages fetched
+- records stored
+- error messages
+
+This provides operational visibility.
+
+---
 
 ## Trade-offs
-Due to the two-day constraint, we explicitly deferred:
-- **OAuth2:** Supported basic token headers, but full OAuth2 flows (refresh tokens) are highly specific and time-consuming to mock.
-- **Distributed Queues:** Used Python's local `ThreadPoolExecutor` for concurrency. For true high-throughput scraping, this should be moved to Celery or Airflow.
 
-## Production Evolution
-If scaling this service to scrape Amazon/Walmart at enterprise volumes, we would evolve the current stack:
-- **Storage:** SQLite → PostgreSQL (or Snowflake).
-- **Compute:** ThreadPoolExecutor → Celery Workers backed by Redis.
-- **Data Lake:** Mock S3 (`.jsonl` files) → Real AWS S3 via `boto3`.
-- **Security:** Static Headers → dynamic AWS SigV4 / HashiCorp Vault integrations.
+The implementation intentionally prioritizes architecture over infrastructure.
+
+| Current | Production |
+|----------|------------|
+| SQLite | PostgreSQL |
+| ThreadPoolExecutor | Celery / Airflow |
+| Local Files | AWS S3 |
+| Static Headers | OAuth2 / AWS SigV4 |
+
+These choices reduce setup complexity while preserving extensibility.
+
+---
+
+## Assumptions
+
+- APIs return JSON.
+- Pagination behavior is described through configuration.
+- Public APIs remain available during execution.
+- Authentication headers can be supplied through configuration.
+
+---
+
+## Production Considerations
+
+If evolving into production, the next engineering priorities would be:
+- Idempotent ingestion
+- Mid-job checkpointing
+- Retry-After support for HTTP 429
+- OAuth2 / AWS SigV4 authentication
+- PostgreSQL
+- Distributed workers
+- Metrics and observability
+- Schema drift detection
+
+These were intentionally deferred due to the two-day project scope.
+
+---
+
+## Conclusion
+
+The primary objective of this project was not to build an Amazon-specific connector but to demonstrate a generic ingestion architecture capable of adapting to arbitrary REST APIs through configuration. The implementation emphasizes extensibility, maintainability, and separation of concerns while remaining lightweight enough to evaluate easily.

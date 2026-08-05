@@ -1,28 +1,109 @@
-# Test Results & Validation
+# Validation Results
 
-This project has been thoroughly validated against a variety of structural edge cases, public APIs, and intentional failure modes to guarantee its robustness.
+The framework was validated against multiple public APIs, pagination strategies, destinations, and failure scenarios.
 
-## APIs Validated
-| API | Structure | Pagination | Result |
-|---|---|---|---|
-| JSONPlaceholder | Flat array | None | ✅ Pass |
-| Rick & Morty | Nested | Next Link | ✅ Pass |
-| DummyJSON | Nested | Offset | ✅ Pass |
-| Open Brewery | Flat | Page | ✅ Pass |
+---
 
-## Edge Cases & Error Handling
-| Test | Description | Result |
-|---|---|---|
-| **Multiple APIs Concurrent** | Submitted an array of multiple different APIs to the ingestion engine simultaneously. | ✅ Pass (Executed in parallel via ThreadPoolExecutor) |
-| **Duplicate Sources** | Submitted the exact same API twice in the same array. | ✅ Pass (Ingested cleanly without crashing) |
-| **Wrong `data_path`** | Passed an incorrect JSON path to force a failure. | ✅ Pass (Job completes gracefully with 0 records stored) |
-| **Invalid Pagination** | Passed invalid pagination keys. | ✅ Pass (Gracefully falls back / limits fetched pages) |
-| **Invalid URL / 404** | Pointed the ingestion engine at a dead URL. | ✅ Pass (Logs error to Dead Letter Queue, marks job as failed) |
-| **Slow API (Timeouts)** | Pointed at a sluggish endpoint. | ✅ Pass (Triggers `tenacity` exponential backoff and retry loop) |
+## Functional Tests
 
-## Destination Verification
-| Test | Result |
-|---|---|
-| **Mixed Destinations** | ✅ Pass (Routed JSONPlaceholder to DB and Rick & Morty to S3 concurrently) |
-| **SQLite Verification** | ✅ Pass (Manually verified 140 rows in the raw `records` table matching Job IDs) |
-| **S3 Verification** | ✅ Pass (Verified generation of `.jsonl` payloads inside the `s3_mock_bucket` directory) |
+| Test | Expected | Result |
+|------|----------|--------|
+| JSONPlaceholder Posts | 100 records | ✅ Pass |
+| Rick & Morty Characters | 40 records | ✅ Pass |
+| DummyJSON Products | 60 records | ✅ Pass |
+| Open Brewery DB | Successful ingestion | ✅ Pass |
+| Multiple APIs in one job | Concurrent ingestion | ✅ Pass |
+| Duplicate source configurations | Independent ingestion | ✅ Pass |
+
+---
+
+## Pagination Tests
+
+| Pagination Type | Result |
+|----------------|--------|
+| None | ✅ |
+| Page | ✅ |
+| Offset | ✅ |
+| Cursor | ✅ |
+| Next Link | ✅ |
+
+---
+
+## Configuration Validation
+
+| Scenario | Expected | Result |
+|----------|----------|--------|
+| Invalid pagination type | Validation error | ✅ Pass |
+| Missing required fields | Validation error | ✅ Pass |
+| Invalid URL | Failed job with error | ✅ Pass |
+| Incorrect data_path | Completed with zero extracted records | ✅ Pass |
+
+---
+
+## Error Handling
+
+| Scenario | Result |
+|----------|--------|
+| Invalid endpoint | ✅ Graceful failure |
+| HTTP errors | ✅ Job marked failed |
+| Retry mechanism | ✅ Working |
+| Multiple concurrent failures | ✅ Isolated |
+
+---
+
+## Destination Tests
+
+| Destination | Result |
+|-------------|--------|
+| SQLite | ✅ Records persisted |
+| Mock S3 | ✅ JSONL files generated |
+
+---
+
+## Database Verification
+
+SQLite verification confirmed:
+- Job metadata recorded correctly
+- Stored record count matched actual database rows
+- Raw JSON payloads preserved
+
+Example verification:
+- Latest Job
+- Pages Fetched: 3
+- Records Stored: 140
+- Database Rows: 140
+- **Result:** ✅ Counts matched exactly.
+
+---
+
+## Genericity Validation
+
+The framework was demonstrated against structurally different public APIs.
+
+| API | Structure | Pagination |
+|-----|-----------|------------|
+| JSONPlaceholder | Flat JSON Array | None |
+| Rick & Morty | Nested JSON | Next Link |
+| DummyJSON Products | Nested JSON | Offset |
+| Open Brewery DB | Flat JSON | Page |
+
+No application code changes were required when switching between APIs. Only configuration changed.
+
+---
+
+## Overall Result
+
+The framework successfully demonstrated:
+- Configuration-driven ingestion
+- Multiple public APIs
+- Multiple pagination mechanisms
+- Concurrent ingestion
+- Retry handling
+- Destination abstraction
+- SQLite persistence
+- Mock S3 persistence
+- Input validation
+- Job tracking
+
+**Overall Status:**
+✅ All planned functional validation scenarios passed successfully.

@@ -1,119 +1,172 @@
-# Generic Data Ingestion Service
+# README.md
 
 ## 1. Project Overview
-**Generic Data Ingestion Service** is a configuration-driven ingestion framework that connects to arbitrary REST APIs, retrieves JSON data, and persists it to configurable destinations without requiring source-specific code changes. The system demonstrates extensibility through pluggable pagination strategies, destination abstractions, retry logic, and job tracking.
+
+Generic Data Ingestion Service is a configuration-driven ingestion framework that connects to arbitrary REST APIs, retrieves JSON data, and persists raw records to configurable destinations. The goal is to demonstrate a generic architecture where adding a new API requires only configuration changes rather than code modifications.
+
+---
 
 ## 2. Features
-- **Generic configuration-driven ingestion:** No hardcoded schemas.
-- **Multiple concurrent APIs:** Ingests multiple APIs simultaneously via ThreadPool workers.
-- **Multiple pagination strategies:** Supports Cursor, Offset, Page, Next Links, and Auto-detection.
-- **Raw JSON persistence:** Stores payloads exactly as received to prevent fragile schema-drift failures.
-- **Retry with exponential backoff:** Resilient to network flakes.
-- **SQLite destination:** Relational storage strategy.
-- **Mock S3 destination:** Object storage strategy.
-- **Dead Letter Queue (DLQ):** Failed records are routed to an isolated error table without crashing the job.
-- **Incremental sync:** Persists cursors so subsequent runs resume where they left off.
-- **Job tracking:** A lightweight web UI to submit and poll job statuses dynamically.
+
+* Configuration-driven source ingestion
+* Support for multiple APIs in a single job
+* Multiple pagination strategies
+* Concurrent ingestion
+* Raw JSON persistence
+* SQLite destination
+* Mock S3 destination
+* Retry with exponential backoff
+* Job tracking and monitoring
+* Input validation
+* Extensible architecture
+
+---
 
 ## 3. Architecture
+
 ```mermaid
-graph LR
-    UI[Web UI / API Client] -->|Submit JSON Config| API(FastAPI)
-    API -->|Write Pending Job| SQLite[(SQLite DB)]
-    API -->|Dispatch| Workers(ThreadPool)
-    Workers -->|Parse Config| Engine[Ingestion Engine]
-    Engine <-->|Fetch & Retry| HTTP[External APIs]
-    Engine -->|Route Data| Dest[Destination Strategy]
-    Dest --> DB[(Database)]
-    Dest --> S3[(Mock S3 Data Lake)]
-    Engine -->|On Failure| DLQ[(Dead Letter Queue)]
+graph TD
+    User --> WebUI[Web UI]
+    WebUI --> FastAPI[FastAPI Backend]
+    FastAPI --> Config[Configuration Validation]
+    Config --> Engine[Generic Ingestion Engine]
+    
+    Engine --> Pagination[Pagination Strategy]
+    Engine --> Extraction[Record Extraction]
+    Engine --> Retry[Retry Logic]
+    
+    Retry --> Destination[Destination Abstraction]
+    Destination --> SQLite[(SQLite)]
+    Destination --> S3[(Mock S3)]
 ```
 
+---
+
 ## 4. Key Design Decisions
-- **Configuration-driven architecture:** New APIs are integrated through configuration rather than code changes.
-- **Pagination abstraction:** Supports multiple pagination strategies through configuration.
-- **Destination abstraction:** Persistence is decoupled from ingestion, allowing new storage backends to be plugged in trivially.
-- **Raw JSON persistence:** Payloads are stored without transformation to preserve source fidelity.
-- **Retry strategy:** Transient failures are handled with retries and exponential backoff (`tenacity`).
-- **Job tracking:** Each ingestion records status, timestamps, pages fetched, records stored, and isolated errors.
+
+* **Configuration-driven architecture**: New APIs are integrated through configuration rather than code changes.
+* **Pagination abstraction**: Supports multiple pagination strategies through configuration.
+* **Destination abstraction**: Persistence is decoupled from ingestion, allowing new storage backends.
+* **Raw JSON storage**: Payloads are stored without transformation to preserve source fidelity.
+* **Retry strategy**: Transient failures are handled with retries and exponential backoff.
+* **Job tracking**: Each ingestion records status, timestamps, pages fetched, records stored, and errors.
+
+---
 
 ## 5. Supported Pagination
-| Pagination Strategy | Supported |
-| --- | --- |
-| None | ✅ |
-| Page | ✅ |
-| Offset | ✅ |
-| Cursor | ✅ |
-| Next Link | ✅ |
-| Auto | ✅ |
 
-## 6. Public APIs Demonstrated
-| API Endpoint | Structure | Pagination | Demo Result |
-| --- | --- | --- | --- |
-| **JSONPlaceholder**<br>`https://jsonplaceholder.typicode.com/posts` | Flat JSON Array | None | ✅ 100 records |
-| **Rick & Morty**<br>`https://rickandmortyapi.com/api/character` | Nested (`results`) | Next Link | ✅ 40 records |
-| **DummyJSON**<br>`https://dummyjson.com/products` | Nested (`products`) | Offset | ✅ 60 records |
-| **Open Brewery**<br>`https://api.openbrewerydb.org/breweries` | Flat Array | Page | ✅ Successful |
+| Strategy  | Supported |
+| --------- | --------- |
+| None      | ✅         |
+| Page      | ✅         |
+| Offset    | ✅         |
+| Cursor    | ✅         |
+| Next Link | ✅         |
 
-## 7. Running the Project
-**Requirements:** Docker (Recommended) or Python 3.11+
+---
 
-**Using Docker (Single Command):**
+## 6. Public APIs Used for Demonstration ⭐
+
+| API                     | Endpoint                                     | Structure                | Pagination              | Purpose                                                          |
+| ----------------------- | -------------------------------------------- | ------------------------ | ----------------------- | ---------------------------------------------------------------- |
+| JSONPlaceholder Posts   | `https://jsonplaceholder.typicode.com/posts` | Flat JSON Array          | None                    | Demonstrates ingestion from a flat JSON array without pagination |
+| Rick & Morty Characters | `https://rickandmortyapi.com/api/character`  | Nested JSON (`results`)  | Next Link (`info.next`) | Demonstrates nested record extraction and link-based pagination  |
+| DummyJSON Products      | `https://dummyjson.com/products`             | Nested JSON (`products`) | Offset                  | Demonstrates ingestion of an e-commerce style product catalog    |
+| Open Brewery DB         | `https://api.openbrewerydb.org/v1/breweries` | Flat JSON                | Page                    | Demonstrates page-based pagination                               |
+
+> These public APIs were intentionally selected because they expose different response structures and pagination mechanisms, demonstrating that the ingestion engine is configuration-driven rather than tailored to a single source.
+
+---
+
+## 7. How to Run
+
+### Docker
+
 ```bash
 docker compose up --build
 ```
 
-**Using Python (Local Development):**
+### Local
+
 ```bash
 python -m venv .venv
-.\.venv\Scripts\activate
+
+# Windows
+.venv\Scripts\activate
+
 pip install -r requirements.txt
+
 uvicorn app:app --reload
 ```
 
-**How to test:**
-- Open `http://127.0.0.1:8000` in your browser.
-- Paste one of the example configurations (or click "Load Demo").
-- Click "Start Ingestion".
-- Observe the job progress updating dynamically on the dashboard.
+Open `http://127.0.0.1:8000` in your browser.
+Paste one of the sample configurations and click **Start Ingestion**.
+
+---
 
 ## 8. Validation
-More than **20 functional and failure scenarios** were manually validated.
-Please refer to **[TEST_RESULTS.md](./TEST_RESULTS.md)** for a full matrix of validated scenarios, failure modes, and database verifications.
 
-## 9. Production Readiness
-The architecture intentionally separates ingestion, pagination, persistence, and configuration so the core ingestion engine remains unchanged while infrastructure components evolve.
+The framework was validated against multiple success and failure scenarios including:
+* Multiple public APIs
+* Flat and nested JSON responses
+* Different pagination mechanisms
+* Multiple concurrent sources
+* Invalid URLs
+* Invalid pagination configurations
+* Incorrect data paths
+* Duplicate source configurations
+* SQLite persistence verification
+* Mock S3 destination verification
 
-| Current Implementation | Future Production Evolution |
-|---|---|
-| **SQLite Database** | PostgreSQL / Snowflake |
-| **ThreadPoolExecutor** | Celery / Airflow / AWS SQS |
-| **Local File System (Mock S3)**| AWS S3 / Kafka / GCP Cloud Storage |
-| **Static Auth Headers** | Enterprise Auth Providers (OAuth2, AWS SigV4) |
+(Refer to `TEST_RESULTS.md` for the full breakdown).
 
-## 10. Trade-offs & Assumptions
-**Trade-offs:**
-- SQLite was chosen instead of PostgreSQL to keep setup simple and avoid heavy Docker images for reviewers.
-- ThreadPoolExecutor was chosen instead of Celery to avoid requiring Redis/RabbitMQ infrastructure for this demo.
-- Public APIs were used for demonstration because enterprise APIs require complex credential handshakes.
-- The framework currently targets JSON REST APIs (skipping XML/CSV).
+---
 
-**Assumptions:**
-- APIs return valid JSON payloads.
-- The JSON configuration provided correctly describes the API's pagination rules.
-- Network connectivity is available.
-- Authentication headers can be provided manually through configuration.
+## 9. Trade-offs & Assumptions
+
+**Trade-offs**
+* SQLite was selected to simplify setup.
+* ThreadPoolExecutor was used instead of distributed workers.
+* Public APIs were used for demonstration purposes.
+
+**Assumptions**
+* APIs expose JSON responses.
+* Configuration correctly describes pagination.
+* Authentication headers can be provided through configuration.
+
+---
+
+## 10. Production Readiness
+
+| Current              | Production Evolution   |
+| -------------------- | ---------------------- |
+| SQLite               | PostgreSQL             |
+| ThreadPoolExecutor   | Celery / Airflow       |
+| Mock S3              | AWS S3                 |
+| Static configuration | Secret Manager / Vault |
+
+The architecture intentionally separates ingestion, pagination, and persistence so these infrastructure components can evolve independently.
+
+---
 
 ## 11. Future Work
-If given more time to scale this for an enterprise production environment (like Walmart or Amazon), these engineering improvements would be prioritized:
-- **OAuth2 / AWS SigV4:** Native support for complex credential handshakes.
-- **Idempotent Ingestion:** Record hashing to prevent duplicates on rerun.
-- **Schema Drift Detection:** Alerting when APIs silently change their payload keys.
-- **Rate Limit Awareness:** Support for HTTP 429 `Retry-After` headers.
-- **Prometheus Metrics & `/health` endpoint:** For Datadog/Pagerduty observability.
+
+Features intentionally deferred due to the two-day constraint:
+* OAuth2 / AWS SigV4 authentication providers
+* Idempotent ingestion
+* Checkpoint updates after every page
+* Rate-limit aware retries (`Retry-After`)
+* Prometheus metrics
+* Health endpoint
+* Schema drift detection
+* Kafka / Cloud Storage destinations
+* PostgreSQL support
+
+---
 
 ## 12. AI Usage
-AI tools (ChatGPT and Gemini) were used to accelerate boilerplate generation, documentation drafting, and brainstorming. All generated code was reviewed, manually tested, and refined through extensive validation.
 
-**One place AI got something wrong:**
-Early on, the AI naively assumed that all paginated APIs return `next` links solely within the JSON response body. I discovered through testing that many enterprise APIs (like GitHub) actually return pagination links hidden inside the HTTP Headers (e.g., `Link: <url>; rel="next"`). I caught this oversight, replaced the naive implementation, and explicitly instructed the engine to parse `response.headers` for `rel="next"` links before falling back to the JSON body. This proves the importance of validating AI assumptions against real-world production behaviors.
+AI tools (ChatGPT and Gemini) were used to accelerate boilerplate implementation, brainstorm architectural improvements, and assist with documentation. All generated code and suggestions were manually reviewed, tested against multiple public APIs, and refined based on observed behavior.
+
+**One place AI got something wrong**
+During development, the AI initially assumed that paginated APIs strictly return `next` link URLs exclusively inside the JSON payload. Manual testing against enterprise APIs revealed this was a naive assumption (e.g., GitHub returns pagination links entirely within the HTTP headers `Link: <url>; rel="next"`). The AI-generated implementation was replaced with a robust parser that checks `response.headers` prior to parsing the JSON payload. This reinforced the importance of validating AI-generated suggestions rather than relying on them blindly.
