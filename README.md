@@ -48,12 +48,12 @@ graph LR
 | Auto | ✅ |
 
 ## 6. Public APIs Demonstrated
-| API | Structure | Pagination | Demo Result |
+| API Endpoint | Structure | Pagination | Demo Result |
 | --- | --- | --- | --- |
-| **JSONPlaceholder Posts** | Flat JSON Array | None | ✅ 100 records |
-| **Rick & Morty Characters** | Nested (`results`) | Next Link | ✅ 40 records |
-| **DummyJSON Products** | Nested (`products`) | Offset | ✅ 60 records |
-| **Open Brewery** | Flat Array | Page | ✅ Successful |
+| **JSONPlaceholder**<br>`https://jsonplaceholder.typicode.com/posts` | Flat JSON Array | None | ✅ 100 records |
+| **Rick & Morty**<br>`https://rickandmortyapi.com/api/character` | Nested (`results`) | Next Link | ✅ 40 records |
+| **DummyJSON**<br>`https://dummyjson.com/products` | Nested (`products`) | Offset | ✅ 60 records |
+| **Open Brewery**<br>`https://api.openbrewerydb.org/breweries` | Flat Array | Page | ✅ Successful |
 
 ## 7. Running the Project
 **Requirements:** Docker (Recommended) or Python 3.11+
