@@ -31,3 +31,21 @@ This document outlines the core concerns evaluated when designing this generic i
 Given the two-day constraint, we intentionally scoped out:
 1. **OAuth2/Complex Authentication:** We support basic headers and tokens, but full OAuth2 flows (refresh tokens, handshakes) were omitted as they are highly specific to individual vendors.
 2. **Distributed Task Queues (Celery/Kafka):** We used FastAPI's internal `BackgroundTasks` and Python `ThreadPoolExecutor` for concurrency. For a massive production system, this would be moved to Celery or Airflow, but that requires heavy infrastructure (Redis/RabbitMQ) that makes reviewing this demo unnecessarily difficult.
+
+## Future Work (If we had 2 weeks instead of 2 days)
+If Intentwise hired us to build the first true production version of this service, here is what we would prioritize based on ROI:
+
+### 1. High Impact Architecture Improvements
+- **Idempotent Ingestion:** Generate a stable hash for every record upon ingestion to prevent duplicate rows when re-running a job.
+- **Mid-page Checkpointing:** Currently, we save the pagination cursor at the end of the run. In a massive pipeline, we should checkpoint state *after every page* so a crash on page 99 resumes exactly at page 99.
+- **Adaptive Rate Limiting (429 Support):** Instead of blind exponential backoff, intercept HTTP 429 responses and sleep for the exact duration requested by the Retry-After header.
+- **Schema-aware Configuration Validation:** Validate the JSON configurations strictly using Pydantic before the job ever starts to fail fast.
+
+### 2. Scalability & Extensibility
+- **Distributed Workers:** Move off the simple Python ThreadPoolExecutor and onto **Celery** or **AWS SQS** for true distributed worker scaling.
+- **Advanced Destinations:** Replace the S3 Mock with real oto3 integration to dump raw JSON payloads into an AWS S3 Data Lake, and migrate the relational database from SQLite to **PostgreSQL** or **Snowflake**.
+- **Auth Abstractions:** Build an AuthProvider class to handle OAuth2 handshakes, AWS SigV4 signing, and HMAC token refresh flows for enterprise APIs.
+
+### 3. Observability
+- **Metrics & Telemetry:** Introduce structured JSON logging and expose a /metrics Prometheus endpoint to track latency, DLQ queue sizes, and records ingested per second.
+- **Schema Drift Detection:** Alert on structural changes (e.g., the API changes a field from price to pricing.current).

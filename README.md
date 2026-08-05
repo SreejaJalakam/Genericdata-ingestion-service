@@ -58,7 +58,9 @@ docker compose up --build
 - **Lightweight UI:** A small interactive page demonstrates the service and allows non-technical reviewers to exercise ingestion without writing code.
 
 ## Notes on AI assistance
-This project was developed with AI tooling to accelerate implementation and help design the ingestion engine. I verified each component manually, especially the pagination heuristics and database persistence, to ensure the service behaves correctly.
+This project was developed with AI tooling to accelerate implementation (e.g., scaffolding the FastAPI boilerplate, writing the Jinja templates). 
 
-## Design notes
-Read `DESIGN.md` for architecture details, tradeoffs, and next-step improvements.
+**Where the AI got it wrong:** Early on, the AI assumed that all paginated APIs return `next` links in the JSON response body. I realized that some enterprise APIs (like GitHub) actually return pagination links hidden inside the HTTP Headers (e.g., `Link: <url>; rel="next"`). I caught this during testing, rejected the AI's naive implementation, and explicitly instructed it to write a parser that checks `response.headers` for `rel="next"` links before falling back to the JSON body. You can see this logic in `ingestion.py -> _headers_next_link()`.
+
+## Architecture, Trade-offs, & Future Work
+To address the prompt's core question—identifying which concerns matter in real-world ingestion, deciding how far to take them, and what to do with more time—I have documented all architectural decisions, trade-offs, and a future production roadmap in the **[DESIGN.md](./DESIGN.md)** file.
