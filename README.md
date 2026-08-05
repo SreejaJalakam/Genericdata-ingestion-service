@@ -166,7 +166,7 @@ Features intentionally deferred due to the two-day constraint:
 
 ## 12. AI Usage
 
-AI tools (ChatGPT and Gemini) were used to accelerate boilerplate implementation, brainstorm architectural improvements, and assist with documentation. All generated code and suggestions were manually reviewed, tested against multiple public APIs, and refined based on observed behavior.
+AI tools (Antigravity, GitHub Copilot, Claude Opus, ChatGPT, and Gemini) were used to accelerate boilerplate implementation, brainstorm architectural improvements, and assist with documentation. All generated code and suggestions were manually reviewed, tested against multiple public APIs, and refined based on observed behavior.
 
 **One place AI got something wrong**
 During development, the AI initially assumed that paginated APIs strictly return `next` link URLs exclusively inside the JSON payload. Manual testing against enterprise APIs revealed this was a naive assumption (e.g., GitHub returns pagination links entirely within the HTTP headers `Link: <url>; rel="next"`). The AI-generated implementation was replaced with a robust parser that checks `response.headers` prior to parsing the JSON payload. This reinforced the importance of validating AI-generated suggestions rather than relying on them blindly.
